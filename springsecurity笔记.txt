@@ -1,0 +1,123 @@
+配置文件：
+	<security:http auto-config="true">
+			<security:intercept-url pattern="/**" access="ROLE_USER"/>
+	</security:http>
+	这里要保存应用程序中得所有URL，只有拥有ROLE_USER角色的用户才能访问。
+	<http>元素是所有web相关的命名空间功能的上级元素。
+	<intercept-url>元素定义pattern，用来匹配进入的请求URL，上面的表示拦截根，以及根子目录下的所有的路径。
+	access：属性定义了请求匹配了指定模式时的需求。使用默认的配置，这个一般是一个逗号分隔的角色队列，一个用户中得一个必须被允许访问请求。
+	前缀"ROLE_"表示的是一个用户用该拥有的权限比对。
+	
+Spring Security框架的核心共享组件：
+	被称为"shared"的组件，是指它在框架中占优很重要的位置，框架里开他们就没法运作。内置的一系列的过滤器中都用到这些共享组件。
+	即使在实际中不打交道，但是理解他们是非常重要的。
+	1.SecurityContextHolder:
+		最基础的对象SecurityContextHolder.把当前应用程序的安全环境的细节存储到它里边。默认情况，SecurityContextHolder使用ThreadLocal存储这些信息。安全环境下载同一个线程执行的方法
+		一直是有效的，我们把安全主体和系统交互的信息都保存在SecurityContextHolder中。
+	2.SecurityContext:
+		Security上下文
+		public interface SecurityContext extends Seriablezable{
+			Authentication getAuthentication();
+			
+			void setAuthentication setAuthentication(Authentication authentication);
+		}
+		
+	3.Authentication:
+		安全主体和系统交互的信息都保存在SecurityContextHolder中。Spring Security使用一个Authentication对应来表现这些信息。
+		你不需要自己创建一个Authentication对象，直接通过SecurityContextHolder获取上下文对象，然后通过上下文对象(SecurityContext)获取。
+	4.UserDetails
+		UserDetails是一个Spring Security的核心接口。代表一个主体（包含用户先关的信息）。
+		在Authentication接口中有一个方法  Object getPrincipal()；这个方法返回的是一个安全主体，大多数情况下，这个对象可以强制转换成UserDetails对象，获取UserDetails对象之后，就可以
+		通过这个对象的getUserName()方法获取当前用户名。
+		第一种获取方法：
+			SecurityContext sexCtx = SecurityContextHolder.getContext();
+			Authenticaiton auth = secCtx.getAuthenticaiton();
+			Object principal = auth.getPrincipal();
+			String userName = "";
+			if(principal instanceof UserDetails){
+				userName = ((UserDetails) principal).getUserName();
+			}esle{
+				userName = principal.toString();
+			}
+		第二种获取方法：
+			在JSP页面中加入：
+			<%@taglib prefix="sec" uri="http://www.springframework.org/security/tags" %>
+			<sec:authentication property="name"/>		
+		
+	理解安全过滤器链：
+		Spring security 的web架构是安全基于标准的servlet过滤器的。它没有在内部使用Servlet或任何其他基于servlet的框架(spring mvc).所以它没有与任何特定的web技术强行关联。
+		它只管理HttpServletRequest 和 HttpServletResponse，不关心请求是来自浏览器，web服务客户端，还是一个Ajax应用。
+		Spring Security一启动就会包含一批负责各种安全管理的过滤器。这些过滤器组成过滤器链。
+		启动过滤器链：
+			<filter>
+				<filter-name>springSecurityFilterChain</filter-name>
+				<filter-class>
+					org.springframework.web.filter.DelegatingFilterProxy
+				</filter-class>
+			</filter>
+			<filter-mapping>
+				<filter-name>springSecurityFilterChain</filter-name>
+				<url-pattern>/*</url-pattern>
+			<filter-mapping>
+			
+			
+		DelegatingFilterProxy:
+			实际上这只是一个代理类，这个过滤器里没有实现过滤器的任何逻辑。
+			DelegatingFilterProxy做的事情就是代理Filter的方法，从Spring容器(application context)里获取Bean.
+			这让bean可以获得Spring web Application context的生命周期支持，使配置方便。
+			bean必须实现javax.servlet.Filter接口，他必须和filter-name里定义的名称是一样的。查看DelegatingFilterProxy的javadoc获取更多信息。
+			Spring security需要一些过滤器，这些过滤器如果在web.xml中配置的话，配置起来就很繁琐了，这些过滤器还必须按照顺序来配置。所以为了方便，就只在web.xml文件中
+			配置了一个代理过滤器，它就相当于是一个入口，web容器启动的时候，由它到spring容器启动Spring 容器中启动spring security需要的过滤器链。
+			Spring容器中配置过滤器了。代理类需要有个代理目标，web.xml文件中得DelegatingFilterProxy所代理的目标类是什么呢？
+			org.springframework.security.web.FilterChainProxy,在spring容器中声明这个类，然后将要启动的过滤器链配置进去就完成配置任务，下面在applicationContext.xml文件中的配置：
+			
+		1.HttpSessionContextIntegrationFilter【org.springframework.security.context.HttpSessionContextIntegrationFilter】
+			第一个起作用的过滤器，首先判断用户的session中是否已经存在一个SecurityContext了，如果存在，就把SecurityContext拿出来，放到SecurityContextHolder中，提供给Spring Security其他部分使用。
+			如果不存在，就创建一个SecurityContext出来，还是放到SecurityContextHolder中，提供其他部分使用。
+			在所有过滤器执行完毕后，清空SecurityContextHolder。
+		2.LogoutFilter【org.springframework.security.ui.logout.LogoutFilter】
+			只处理注销请求，默认为/j_spring_security_logout。在用户发送注销请求的时候，销毁用户session,清空SecurityContextHolder,然后重定向到注销成功页面。
+		3.AuthenticationProcessingFilter【org.springframework.security.ui.webapp.AuthenticationProcessingFilter】
+			处理form登陆的过滤器，与form登陆有关的所有操作都是在此进行的。默认清空下只处理/j_spring_security_check请求，这个请求应该是用户使用form登陆后的提交地址此过滤器执行的基本操作时，
+			通过用户名和密码判断用户是否有效，如果登陆成功就跳转到成功页面，如果登陆失败，就跳转到失败页面。
+		4.DefaultLoginPageGeneratingFilter【org.springframework.security.ui.webapp.DefaultLoginPageGeneratingFilter】
+			此过滤器用来生成一个默认的登陆页面，默认的访问地址为/spring_security_login。默认的登陆页面虽然支持用户输入用户名，密码。也支持rememberMe功能。
+		5.BasicProcessingFilter【org.springframework.security.ui.basicauth.BasicProcessingFilter】
+			此过滤器用于进行basic验证，功能与AuthenticationProcessingFilter类似，只是验证的方式不同。
+		6.SecurityContextHolderAwareRequestFilter【org.springframework.security.wrapper.SecurityContextHolderAwareRequestFilter】
+			此过滤器用来包装客户的请求。目的是在原始请求的基础上，为后续程序提供一些额外的数据。比如getRemoteUser()时直接返回当前登陆的用户名之类的。
+		7.RememberMeProcessingFilter【org.springframework.security.ui.rememberme.RememberMeProcessingFilter】
+			此过滤器实现RememberMe功能，当用户cookie中存放在rememberMe的标记，此过滤器会根据标记自动实现用户登陆，并创建SecurityContext，授予对应的权限。
+		8.AnonymousProcessingFilter【org.springframework.security.providers.anonymous.AnonymousProcsssingFilter】
+			为了保证操作统一性，当前没有登陆时，默认为用户分配匿名用户的权限。关键匿名登陆功能的详细信息。
+		9.ExceptionTranslationFilter【org.springframework.security.ui.ExceptionTranslationFilter】
+			此过滤器的作用是处理中 FilterSecurityInterceptor抛出的异常，然后将请求重定向到对应页面，或返回对应的响应错误代码。
+		10.SessionFixationProtectionFilter【org.springframework.security.ui.SessionFixationProtectionFilter】
+			防御会话伪造攻击
+		11.FilterSecurityInterceptor【org.springframework.security.intercept.web.FilterSecurityInterceptor】
+			用户的权限控制都包含在这个过滤器中。功能一：如果用户尙未登陆，则抛出AuthenticationCredentialsNotFoundException"尙未认证异常"。
+			功能二：如果用户已经登陆，但是没有访问当前资源的权限，则抛出AccessDeniedException"尙未认证异常"
+			功能三：如果用户已登陆，也具有访问当前资源的权限，则放行。
+		
+		管理会话：
+			应用常常有这样的情形：一个用户正确的登陆系统，并没有使用系统提供的"退出"功能，而是直接关闭浏览器，或者长时间不适用系统，Tomcat默认情形情况下会保存session 30分钟，30分钟后，会话就过期了。
+			
+			我们可以配置Spring Security检测失效的session ID，并把用户转发到应用的URL上，我们可以通过配置session-management元素
+			
+			在页面中提供"退出"链接
+				Spring Security在启动的时候，启动了一个过滤器LogoutFilter,它能够接收请求/j_spring_security_logout,此时可以将当前登陆的"踢出"系统。
+				
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
