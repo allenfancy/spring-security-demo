@@ -106,6 +106,7 @@ Spring Security框架的核心共享组件：
 			
 			在页面中提供"退出"链接
 				Spring Security在启动的时候，启动了一个过滤器LogoutFilter,它能够接收请求/j_spring_security_logout,此时可以将当前登陆的"踢出"系统。
+			具体实现看项目
 				
 		
 		
